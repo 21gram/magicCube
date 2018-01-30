@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Three.js 魔方动画</title>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, shrink-to-fit=no&quot;">
+    <script src="./js/three.js"></script>
+    <style type="text/css">
+    * {
+        padding: 0;
+        margin: 0;
+    }
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        background: #EEE;
+    }
+    div#canvas {
+        border: none;
+        width: 100%;
+        height: 90%;
+        background: #EEE;
+    }
+    .tip {
+        position: absolute;
+        bottom: 100px;
+        left: 0;
+        width: 100%;
+        text-align: center;
+    }
+    </style>
+</head>
+<body>
+    
+<p class="tip">试试用键盘来玩哦~<br>U:上 D:下 L:左 R:右 F:前 B:后</p>
+<div id="canvas"></div>
+
+<script type="text/javascript" src="./js/jquery-3.1.0.min.js"></script>
+<script src="./js/TweenMax.min.js"></script>
+<script>
+    var renderer, camera, scene, light, cubeList, lock = false;
+    var loader = new THREE.ObjectLoader();
+
+    var initThree = () => {
+        width = document.getElementById('canvas').clientWidth;
+        height = document.getElementById('canvas').clientHeight;
+        renderer = new THREE.WebGLRenderer({
+            antialias: true
+        });
+        renderer.setSize(width, height);
+        document.getElementById('canvas').appendChild(renderer.domElement);
+        renderer.setClearColor(0xEEEEEE, 1.0);
+    }
+
+    var initCamera = () => {
+        camera = new THREE.PerspectiveCamera(50, width / height, 1, 500);
+        camera.position.x = 15;
+        camera.position.y = 15;
+        camera.position.z = 15;
+        camera.lookAt(scene.position);
+    }
+
+    var initScene = () => {
+        scene = new THREE.Scene();
+    }
+
+    var initLight = () => {
+        var ambientLight = new THREE.AmbientLight(0xffffff);
+        scene.add(ambientLight);
+
+        light = new THREE.DirectionalLight(0xffffff, 1, 0);
+        light.position.set(0, -10, 10);
+        scene.add(light);
+    }
+
+    var initObject = () => {
+        loader.load('./magicCubeblend2-mesh.json', function (m) {
+            for (var i = m.children.length - 1; i >= 0; i--) {
+                var mesh = m.children[i];
+
+                // 校正blender导出来之后的坐标错乱问题
+                mesh.position.x *= -1;
+                mesh.position.z *= -1;
+
+                scene.add(mesh);
+            }
+
+            startAnimation();
+        });
+    }
+
+    var render = function () {
+        requestAnimationFrame(render);
+        renderer.render(scene, camera);
+    };
+
+    var getNodeList = (axis, position) => {
+        var obj = new THREE.Object3D();
+        for (var i = scene.children.length - 1; i >= 0; i--) {
+            var m = scene.children[i];
+            if (m.type == 'Mesh' && m.position[axis] == position) {
+               obj.add(scene.children[i]);
+            }
+        }
+        scene.add(obj);
+        return obj;
+    };
+
+    var updateMatrix = (paraent) => {
+        // 更新子元素的matrix，因为在group里的matrix跟在scene里的不一样
+        for (var i = paraent.children.length - 1; i >= 0; i--) {
+            var c = paraent.children[i];
+            var matrixChild = c.matrix, matrixWorld = paraent.matrixWorld;
+            c.applyMatrix(matrixWorld);
+            // 更新矩阵后计算出来的坐标不精确，要微调
+            c.position.x = Math.round(c.position.x);
+            c.position.y = Math.round(c.position.y);
+            c.position.z = Math.round(c.position.z);
+            scene.add(paraent.children[i]);
+        }
+        scene.remove(paraent);
+    };
+
+    var startRotation = (axis, position) => {
+        var obj = getNodeList(axis, position);
+        var opt = {};
+        opt[axis] = Math.PI/2;
+        lock = true;
+        opt.onComplete = ()=>{
+            updateMatrix(obj);
+            lock = false;
+        }
+        TweenMax.to(
+            obj.rotation,
+            0.6,
+            opt
+        );
+    };
+
+    var animation = {
+        up: () => {
+            startRotation('y', 2);
+        },
+        down: () => {
+            startRotation('y', -2);
+        },
+        left: () => {
+            startRotation('x', -2);
+        },
+        right: () => {
+            startRotation('x', 2);
+        },
+        front: () => {
+            startRotation('z', 2);
+        },
+        back: () => {
+            startRotation('z', -2);
+        }
+    };
+
+    // 先随机转动打乱魔方
+    var animationTypeList = ['up', 'down', 'left', 'right', 'front', 'back'];
+    var count = 10;
+    var startAnimation = () => {
+        if (count) {
+            var type = animationTypeList[Math.floor(Math.random()*6)];
+            animation[type]();
+            count--;
+            setTimeout(()=>{
+                startAnimation();
+            }, 650);
+        }
+    };
+
+    var threeStart = () => {
+        initThree();
+        initScene();
+        initCamera();        
+        initLight();
+        initObject();
+        render();
+
+        $(document).keydown((event)=>{
+            switch(event.keyCode) {
+                case 85:  // u
+                    animation.up();
+                    break;
+                case 68:  // d
+                    animation.down();
+                    break;
+                case 76:  // l
+                    animation.left();
+                    break;
+                case 82:  // r
+                    animation.right();
+                    break;
+                case 70:  // f
+                    animation.front();
+                    break;
+                case 66:  // b
+                    animation.back();
+                    break;
+            }
+        });
+    };
+
+    threeStart();
+</script>
+</body>
+</html>
